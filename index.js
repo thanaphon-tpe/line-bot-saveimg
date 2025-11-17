@@ -12,8 +12,8 @@ const config = {
 const app = express();
 app.get('/', (_, res) => res.send('LINE image saver to Google Drive is running'));
 
-// โหมดอนุญาต: ถ้า TEST_MODE=true จะเก็บทุกรูปจากทุกคน
-const TEST_MODE = (process.env.TEST_MODE || 'false').toLowerCase() === 'true';
+const TEST_MODE =
+  String(process.env.TEST_MODE || 'false').trim().toLowerCase() === 'true';
 
 // กรณีใช้งานจริง: ใส่ userId ที่อนุญาตให้เก็บรูปได้
 const ALLOWED_SENDER_IDS = new Set([
