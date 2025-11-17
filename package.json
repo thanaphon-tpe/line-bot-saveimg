@@ -2,10 +2,13 @@
   "name": "line-bot-saveimg",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": { "start": "node index.js" },
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
     "@line/bot-sdk": "^10.4.0",
     "dotenv": "^17.2.3",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "googleapis": "^166.0.0"
   }
 }
