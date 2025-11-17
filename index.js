@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const { Client, middleware } = require('@line/bot-sdk');
 
-const { uploadImageToDrive } = require('./drive');  // 1Z6P0Sf869W8ilObsDNsyZwteK7ssBzP8
+const { uploadImageToDrive } = require('./drive');  // <-- เพิ่มบรรทัดนี้
 
 const config = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
