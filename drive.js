@@ -1,10 +1,17 @@
 // drive.js
 const { google } = require('googleapis');
 
-const serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT || '{}');
+const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT || '{}';
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(serviceAccountJson);
+} catch (e) {
+  console.error('GOOGLE_SERVICE_ACCOUNT JSON parse error:', e.message);
+  serviceAccount = {};
+}
+
 const folderId = process.env.GDRIVE_FOLDER_ID;
 
-// เตรียม auth แบบ Service Account
 const auth = new google.auth.JWT(
   serviceAccount.client_email,
   null,
@@ -14,30 +21,23 @@ const auth = new google.auth.JWT(
 
 const drive = google.drive({ version: 'v3', auth });
 
-/**
- * uploadImageToDrive(readStream, filename)
- * - readStream = stream จาก client.getMessageContent(message.id)
- * - filename   = ชื่อไฟล์ที่อยากให้ใช้บน Google Drive
- */
 async function uploadImageToDrive(readStream, filename) {
-  if (!folderId) {
-    throw new Error('GDRIVE_FOLDER_ID is not set');
-  }
+  if (!folderId) throw new Error('GDRIVE_FOLDER_ID is not set');
 
   const media = {
-    mimeType: 'image/jpeg', // ถ้าจะเดา type จริง ลองอ่านจาก header เพิ่มเองได้
-    body: readStream
+    mimeType: 'image/jpeg',
+    body: readStream,
   };
 
   const fileMetadata = {
     name: filename,
-    parents: [folderId]
+    parents: [folderId],
   };
 
   const res = await drive.files.create({
     resource: fileMetadata,
     media,
-    fields: 'id, name'
+    fields: 'id, name',
   });
 
   console.log('[gdrive] uploaded:', res.data);
