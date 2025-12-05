@@ -41,8 +41,7 @@ async function handleEvent(event) {
       console.log('[skip] not image:', message.type);
       if (process.env.TEXT_REPLY === 'true' && replyToken) {
         await client.replyMessage(replyToken, {
-          type: 'text',
-          text: 'บอทเก็บเฉพาะรูปภาพเท่านั้นนะครับ 🙂',
+          type: 'no text',
         });
       }
       return;
@@ -80,16 +79,14 @@ async function handleEvent(event) {
 
       if (replyToken && process.env.TEXT_REPLY === 'true') {
         await client.replyMessage(replyToken, {
-          type: 'text',
-          text: `อัปโหลดรูปขึ้น Google Drive แล้ว: ${filename}`,
+          type: 'no text',
         });
       }
     } catch (e) {
       console.error('[gdrive upload ERROR]', e);
       if (replyToken) {
         await client.replyMessage(replyToken, {
-          type: 'text',
-          text: 'อัปโหลดรูปไป Google Drive ไม่สำเร็จครับ 😢',
+          type: 'no text',
         });
       }
     }
