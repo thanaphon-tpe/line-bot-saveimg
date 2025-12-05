@@ -1,43 +1,44 @@
 // drive.js
 const { google } = require('googleapis');
 
-const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT || '{}';
-let serviceAccount;
-try {
-  serviceAccount = JSON.parse(serviceAccountJson);
-} catch (e) {
-  console.error('GOOGLE_SERVICE_ACCOUNT JSON parse error:', e.message);
-  serviceAccount = {};
+const {
+  GDRIVE_CLIENT_ID,
+  GDRIVE_CLIENT_SECRET,
+  GDRIVE_REFRESH_TOKEN,
+  GDRIVE_FOLDER_ID,
+} = process.env;
+
+console.log('[drive] using OAuth2 client');
+console.log('[drive] folder id =', GDRIVE_FOLDER_ID || '(not set)');
+
+if (!GDRIVE_CLIENT_ID || !GDRIVE_CLIENT_SECRET || !GDRIVE_REFRESH_TOKEN) {
+  console.warn('[drive] WARNING: OAuth env not fully set');
 }
 
-const folderId = process.env.GDRIVE_FOLDER_ID;
-
-const auth = new google.auth.JWT(
-  serviceAccount.client_email,
-  null,
-  serviceAccount.private_key,
-  ['https://www.googleapis.com/auth/drive.file']
+const oAuth2Client = new google.auth.OAuth2(
+  GDRIVE_CLIENT_ID,
+  GDRIVE_CLIENT_SECRET
 );
 
-const drive = google.drive({ version: 'v3', auth });
+oAuth2Client.setCredentials({ refresh_token: GDRIVE_REFRESH_TOKEN });
+
+const drive = google.drive({ version: 'v3', auth: oAuth2Client });
 
 async function uploadImageToDrive(readStream, filename) {
-  if (!folderId) throw new Error('GDRIVE_FOLDER_ID is not set');
-
-  const media = {
-    mimeType: 'image/jpeg',
-    body: readStream,
-  };
-
-  const fileMetadata = {
-    name: filename,
-    parents: [folderId],
-  };
+  if (!GDRIVE_FOLDER_ID) {
+    throw new Error('GDRIVE_FOLDER_ID is not set');
+  }
 
   const res = await drive.files.create({
-    resource: fileMetadata,
-    media,
-    fields: 'id, name',
+    requestBody: {
+      name: filename,
+      parents: [GDRIVE_FOLDER_ID],
+    },
+    media: {
+      mimeType: 'image/jpeg',
+      body: readStream,
+    },
+    fields: 'id,name',
   });
 
   console.log('[gdrive] uploaded:', res.data);
