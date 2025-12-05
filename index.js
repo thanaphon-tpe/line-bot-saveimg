@@ -10,8 +10,7 @@ const config = {
   channelSecret: process.env.LINE_CHANNEL_SECRET,
 };
 
-// บังคับ TEST MODE = true ไปเลยก่อน (เก็บรูปจากทุกคน)
-// ภายหลังค่อยเปลี่ยนมาดู ALLOWED_SENDER_IDS ได้
+// TEST MODE = เก็บรูปจากทุกคน
 const TEST_MODE = true;
 
 const app = express();
@@ -34,17 +33,12 @@ app.post('/webhook', middleware(config), (req, res) => {
 async function handleEvent(event) {
   try {
     if (event.type !== 'message') return;
-    const { message, source, replyToken } = event;
 
-    // รับเฉพาะรูป
+    const { message, source } = event;
+
+    // รับเฉพาะรูป — ถ้าไม่ใช่รูป ไม่ทำอะไร (เงียบ)
     if (message.type !== 'image') {
       console.log('[skip] not image:', message.type);
-      if (process.env.TEXT_REPLY === 'true' && replyToken) {
-        await client.replyMessage(replyToken, {
-          type: 'text',
-          text: 'บอทเก็บเฉพาะรูปภาพเท่านั้นนะครับ 🙂',
-        });
-      }
       return;
     }
 
@@ -59,13 +53,7 @@ async function handleEvent(event) {
       stream = await client.getMessageContent(message.id);
     } catch (e) {
       console.error('[getMessageContent ERROR]', e.statusCode, e.message);
-      if (replyToken) {
-        await client.replyMessage(replyToken, {
-          type: 'text',
-          text: `ดึงรูปจาก LINE ไม่สำเร็จ (${e.statusCode || ''})`,
-        });
-      }
-      return;
+      return; // ไม่ตอบกลับ
     }
 
     // ตั้งชื่อไฟล์
@@ -77,22 +65,13 @@ async function handleEvent(event) {
     // อัปโหลดขึ้น Google Drive
     try {
       await uploadImageToDrive(stream, filename);
-
-      if (replyToken && process.env.TEXT_REPLY === 'true') {
-        await client.replyMessage(replyToken, {
-          type: 'text',
-          text: `อัปโหลดรูปขึ้น Google Drive แล้ว: ${filename}`,
-        });
-      }
+      console.log('[uploaded]', filename);
+      // ❌ ไม่ตอบข้อความกลับ
     } catch (e) {
       console.error('[gdrive upload ERROR]', e);
-      if (replyToken) {
-        await client.replyMessage(replyToken, {
-          type: 'text',
-          text: 'อัปโหลดรูปไป Google Drive ไม่สำเร็จครับ 😢',
-        });
-      }
+      // ❌ ไม่ตอบข้อความกลับ
     }
+
   } catch (e) {
     console.error('[handleEvent ERROR]', e);
   }
@@ -101,5 +80,5 @@ async function handleEvent(event) {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server started on :${PORT}`);
-  console.log(`Mode: TEST (save from everyone)`); // บังคับ TEST MODE
+  console.log(`Mode: TEST (save from everyone)`);
 });
