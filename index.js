@@ -16,6 +16,9 @@ const TEST_MODE = true;
 const app = express();
 const client = new Client(config);
 
+// เก็บ message.id ที่เคยประมวลผลแล้ว ในหน่วยความจำ
+const processedMessageIds = new Set();
+
 app.get('/', (_, res) => res.send('LINE image saver to Google Drive is running'));
 
 app.post('/webhook', middleware(config), (req, res) => {
@@ -42,6 +45,20 @@ async function handleEvent(event) {
       return;
     }
 
+    // 🔒 กันซ้ำด้วย message.id
+    if (processedMessageIds.has(message.id)) {
+      console.log('[skip] duplicate message id:', message.id);
+      return;
+    }
+    processedMessageIds.add(message.id);
+
+    // ถ้าอยากกันไม่ให้ set โตเกินไป ก็ตัดให้เหลือแค่ล่าสุด ๆ
+    if (processedMessageIds.size > 1000) {
+      // ลบตัวเก่า ๆ ทิ้งบ้าง (แบบง่าย ๆ)
+      const firstKey = processedMessageIds.values().next().value;
+      processedMessageIds.delete(firstKey);
+    }
+
     console.log('[image event]', {
       id: message.id,
       source,
@@ -66,10 +83,8 @@ async function handleEvent(event) {
     try {
       await uploadImageToDrive(stream, filename);
       console.log('[uploaded]', filename);
-      // ❌ ไม่ตอบข้อความกลับ
     } catch (e) {
       console.error('[gdrive upload ERROR]', e);
-      // ❌ ไม่ตอบข้อความกลับ
     }
 
   } catch (e) {
