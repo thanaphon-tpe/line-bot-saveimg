@@ -115,7 +115,7 @@ app.post('/upload', express.json({ limit: '20mb' }), async (req, res) => {
     oAuth2Client.setCredentials({ refresh_token: process.env.GDRIVE_REFRESH_TOKEN });
     const drive = google.drive({ version: 'v3', auth: oAuth2Client });
     await drive.permissions.create({ fileId, requestBody: { role: 'reader', type: 'anyone' } });
-    const url = `https://drive.google.com/uc?export=view&id=${fileId}`;
+    const viewUrl = `https://lh3.googleusercontent.com/d/${file.id}`;
     console.log('[/upload] ok', job_id, url);
     res.json({ ok: true, url, fileId });
   } catch (e) {
