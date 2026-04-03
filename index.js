@@ -16,6 +16,15 @@ const TEST_MODE = true;
 const app = express();
 const client = new Client(config);
 
+// ── CORS — ต้องวางก่อน route ทั้งหมด ──────────────────────────────
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  next();
+});
+
 const processedMessageIds = new Set();
 const pendingCaption = {};
 const PENDING_TTL_MS = 5 * 60 * 1000;
@@ -130,7 +139,7 @@ async function logPhotoToSheets(jobId, fileId, caption, userId) {
   }
 }
 
-// ── /upload — รับรูปจาก Netlify ────────────────────────────────────────
+// ── /upload — รับรูปจาก web ────────────────────────────────────────
 app.post('/upload', express.json({ limit: '20mb' }), async (req, res) => {
   try {
     const { job_id, image_base64, caption, mime_type } = req.body || {};
@@ -153,7 +162,6 @@ app.post('/upload', express.json({ limit: '20mb' }), async (req, res) => {
     const drive = google.drive({ version: 'v3', auth: oAuth2Client });
     await drive.permissions.create({ fileId, requestBody: { role: 'reader', type: 'anyone' } });
 
-    // ✅ แก้: ใช้ thumbnail URL ที่ใช้ใน img tag ได้
     const url = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
     console.log('[/upload] ok', job_id, url);
     res.json({ ok: true, url, fileId });
@@ -161,16 +169,6 @@ app.post('/upload', express.json({ limit: '20mb' }), async (req, res) => {
     console.error('[/upload] error', e.message);
     res.status(500).json({ error: e.message });
   }
-});
-
-
-// ── CORS — อนุญาต WordPress และ localhost ──────────────────────────
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  next();
 });
 
 // ── /sheets — Proxy Google Sheets API ──────────────────────────────
@@ -183,7 +181,6 @@ app.post('/sheets', express.json({ limit: '5mb' }), async (req, res) => {
     const SID   = process.env.GOOGLE_SHEET_ID;
     if (!EMAIL||!KEY||!SID) return res.status(500).json({ error:'Missing env vars' });
 
-    // JWT
     const now = Math.floor(Date.now()/1000);
     const h = Buffer.from(JSON.stringify({alg:'RS256',typ:'JWT'})).toString('base64url');
     const p = Buffer.from(JSON.stringify({iss:EMAIL,scope:'https://www.googleapis.com/auth/spreadsheets',aud:'https://oauth2.googleapis.com/token',exp:now+3600,iat:now})).toString('base64url');
@@ -216,13 +213,11 @@ app.post('/lark-sync', express.json(), async (req, res) => {
     const TABLE_ID  = process.env.LARK_TABLE_ID;
     if (!APP_TOKEN||!TABLE_ID) return res.status(500).json({error:'Missing LARK env vars'});
 
-    // Lark token
     const lr = await fetch('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app_id:process.env.LARK_APP_ID,app_secret:process.env.LARK_APP_SECRET})});
     const ld = await lr.json();
     if (ld.code!==0) throw new Error('Lark token: '+ld.msg);
     const larkToken = ld.tenant_access_token;
 
-    // Fetch records
     let allRecords=[],pageToken=null;
     do {
       let url=`https://open.larksuite.com/open-apis/bitable/v1/apps/${APP_TOKEN}/tables/${TABLE_ID}/records?page_size=100`;
@@ -234,7 +229,6 @@ app.post('/lark-sync', express.json(), async (req, res) => {
       pageToken=dd.data.has_more?dd.data.page_token:null;
     } while(pageToken);
 
-    // Date helper
     function toThaiDate(val){
       if(!val)return'';
       let ms=typeof val==='number'?val:parseInt(val);
@@ -255,7 +249,6 @@ app.post('/lark-sync', express.json(), async (req, res) => {
       return[get(FIELDS.job_id),getDate(FIELDS.open_date),get(FIELDS.job_name),get(FIELDS.company),getDate(FIELDS.action_date),get(FIELDS.status),get(FIELDS.quotation),get(FIELDS.delivery),get(FIELDS.job_type),getDate(FIELDS.expected_end),rec.record_id,new Date().toISOString()];
     });
 
-    // Write to Sheets
     const now2=Math.floor(Date.now()/1000);
     const EMAIL=process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,KEY2=(process.env.GOOGLE_PRIVATE_KEY||'').replace(/\\n/g,'\n'),SID=process.env.GOOGLE_SHEET_ID;
     const h2=Buffer.from(JSON.stringify({alg:'RS256',typ:'JWT'})).toString('base64url');
