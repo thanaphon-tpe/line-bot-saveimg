@@ -98,7 +98,7 @@ async function handleEvent(event) {
     if (pending && fileId) {
       const expired = Date.now() - pending.ts > PENDING_TTL_MS;
       if (!expired) {
-        await logPhotoToSheets(pending.jobId, fileId, pending.caption, userId);
+        await logPhotoToSheets(pending.jobId, fileId, pending.caption, 'line', userId);
         delete pendingCaption[userId];
       } else {
         console.log('[pending expired]', userId);
@@ -112,7 +112,7 @@ async function handleEvent(event) {
 }
 
 // ── Google Sheets logging ────────────────────────────────────────────────
-async function logPhotoToSheets(jobId, fileId, caption, userId) {
+async function logPhotoToSheets(jobId, fileId, caption, source, userId) {
   const SA_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const SA_KEY = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
   const SHEET_ID = process.env.GOOGLE_SHEET_ID;
@@ -131,7 +131,7 @@ async function logPhotoToSheets(jobId, fileId, caption, userId) {
       range: 'photos!A:G',
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[jobId.trim().toUpperCase(), url, caption||'', 'line', now.toISOString(), dateTh, userId||'']] },
+      requestBody: { values: [[jobId.trim().toUpperCase(), url, caption||'', source||'web', now.toISOString(), dateTh, userId||'']] },
     });
     console.log('[sheets] logged', jobId, url);
   } catch (e) {
@@ -139,7 +139,7 @@ async function logPhotoToSheets(jobId, fileId, caption, userId) {
   }
 }
 
-// ── /upload — รับรูปจาก web ────────────────────────────────────────
+// ── /upload — รับรูปจาก web แล้ว log ลง Sheet ด้วย ─────────────────
 app.post('/upload', express.json({ limit: '20mb' }), async (req, res) => {
   try {
     const { job_id, image_base64, caption, mime_type } = req.body || {};
@@ -152,11 +152,12 @@ app.post('/upload', express.json({ limit: '20mb' }), async (req, res) => {
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `${job_id.trim().toUpperCase()}_${ts}.jpg`;
 
+    // 1. อัปโหลดรูปขึ้น Drive
     const result = await uploadImageToDrive(stream, filename);
     const fileId = result?.id;
     if (!fileId) throw new Error('Drive upload failed — no file ID returned');
 
-    // ทำให้ public
+    // 2. ทำให้ public
     const oAuth2Client = new google.auth.OAuth2(process.env.GDRIVE_CLIENT_ID, process.env.GDRIVE_CLIENT_SECRET);
     oAuth2Client.setCredentials({ refresh_token: process.env.GDRIVE_REFRESH_TOKEN });
     const drive = google.drive({ version: 'v3', auth: oAuth2Client });
@@ -164,6 +165,10 @@ app.post('/upload', express.json({ limit: '20mb' }), async (req, res) => {
 
     const url = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
     console.log('[/upload] ok', job_id, url);
+
+    // 3. บันทึกลง Google Sheet ✅
+    await logPhotoToSheets(job_id, fileId, caption || '', 'web', '');
+
     res.json({ ok: true, url, fileId });
   } catch (e) {
     console.error('[/upload] error', e.message);
